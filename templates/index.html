@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quant Alert — Multi-Market Alerts</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="logo">⚡</span>
+    <div>
+      <h1>Quant Alert</h1>
+      <p class="sub">Volume-imbalance &amp; uncertainty-zone alerts · US 🇺🇸 · Crypto 🪙 · India 🇮🇳</p>
+    </div>
+  </div>
+  <div class="status-bar" id="statusBar"></div>
+</header>
+
+<main>
+  <!-- ── Built-in market scanner ── -->
+  <section class="panel">
+    <h2>Market Scanner <span class="count" id="scanMeta"></span></h2>
+    <div class="tabs" id="scanTabs">
+      <button class="tab active" data-m="crypto">🪙 Crypto</button>
+      <button class="tab" data-m="us">🇺🇸 US</button>
+      <button class="tab" data-m="india">🇮🇳 India</button>
+    </div>
+    <div class="table-wrap">
+      <table id="scannerTable">
+        <thead>
+          <tr>
+            <th>#</th><th>Symbol</th><th>Name</th><th>Price</th><th>Day %</th>
+            <th>I</th><th>Y (ticks)</th><th>Signal</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty" id="scanEmpty" hidden>Scanner warming up…</p>
+  </section>
+
+  <!-- ── New alert form ── -->
+  <section class="panel" id="formPanel">
+    <h2>New Alert</h2>
+    <form id="alertForm">
+      <div class="grid">
+        <label>Market
+          <select name="market" id="market">
+            <option value="crypto">Crypto (Binance)</option>
+            <option value="us">US Stocks (Yahoo)</option>
+            <option value="india">India NSE (Dhan)</option>
+          </select>
+        </label>
+        <label>Symbol
+          <input name="symbol" id="symbol" list="symbolList" placeholder="BTCUSDT"
+                 autocomplete="off" required>
+          <datalist id="symbolList"></datalist>
+          <small id="symbolHint">Loading symbols…</small>
+        </label>
+        <label>Alert name
+          <input name="name" id="alertName" placeholder="(auto)">
+        </label>
+        <label>Alert type
+          <select name="alert_type" id="alertType">
+            <option value="imbalance_any">Imbalance signal (LONG or SHORT)</option>
+            <option value="imbalance_long">Imbalance LONG signal</option>
+            <option value="imbalance_short">Imbalance SHORT signal</option>
+            <option value="price_above">Price above level</option>
+            <option value="price_below">Price below level</option>
+            <option value="pct_change">Day % change beyond ±X%</option>
+          </select>
+        </label>
+        <label class="price-field">Threshold (price / %)
+          <input name="threshold" type="number" step="any" value="0">
+        </label>
+      </div>
+
+      <details class="model-params" id="modelParams" open>
+        <summary>Model parameters (Pulido–Rosenbaum–Sfendourakis)</summary>
+        <div class="grid">
+          <label>|I| threshold
+            <input name="imbalance_threshold" type="number" step="0.01" min="0" max="1" value="0.15">
+          </label>
+          <label>Y threshold (ticks)
+            <input name="y_threshold_ticks" type="number" step="0.1" value="0">
+          </label>
+          <label>η (blank = auto-estimate)
+            <input name="eta" type="number" step="0.01" min="0.01" max="0.49" placeholder="auto">
+          </label>
+          <label>EMA period (S proxy)
+            <input name="ema_period" type="number" min="2" max="60" value="5">
+          </label>
+          <label class="check">
+            <input name="require_barrier" type="checkbox"> Require near-barrier (strict mode)
+          </label>
+        </div>
+      </details>
+
+      <div class="grid">
+        <label>Check every (sec)
+          <input name="interval_sec" type="number" min="5" value="30">
+        </label>
+        <label>Cooldown (sec)
+          <input name="cooldown_sec" type="number" min="0" value="300">
+        </label>
+        <label class="check"><input type="checkbox" name="ch_telegram" checked> Telegram</label>
+        <label class="check"><input type="checkbox" name="ch_discord" checked> Discord</label>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn primary">Create alert</button>
+        <button type="button" class="btn" id="previewBtn">Preview signal</button>
+        <button type="button" class="btn" id="testNotifBtn">Test notifications</button>
+      </div>
+      <pre id="previewOut" class="preview" hidden></pre>
+    </form>
+  </section>
+
+  <!-- ── Active alerts ── -->
+  <section class="panel">
+    <h2>Alerts <span class="count" id="alertCount"></span></h2>
+    <div class="table-wrap">
+      <table id="alertsTable">
+        <thead>
+          <tr>
+            <th>Alert</th><th>Market</th><th>Symbol</th><th>Type</th>
+            <th>Price</th><th>I</th><th>Y (ticks)</th><th>η</th><th>Signal</th>
+            <th>Fired</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty" id="noAlerts" hidden>No alerts yet — create one above.</p>
+  </section>
+
+  <!-- ── Triggered events ── -->
+  <section class="panel">
+    <h2>Triggered Events</h2>
+    <div id="eventsFeed" class="events"></div>
+    <p class="empty" id="noEvents" hidden>Nothing triggered yet.</p>
+  </section>
+</main>
+
+<footer>
+  Signal model: Pulido, Rosenbaum &amp; Sfendourakis (2026), <em>Finance &amp; Stochastics</em> 30:329–396 ·
+  I = (q<sub>b</sub>−q<sub>a</sub>)/(q<sub>b</sub>+q<sub>a</sub>) · Y = S − P · barriers P ± δ(½+η)
+</footer>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

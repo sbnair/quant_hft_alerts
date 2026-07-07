@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+alerts.db
+instance/
+providers/_dhan_scrip_nse_eq.csv
